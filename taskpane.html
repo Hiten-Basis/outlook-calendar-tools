@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar Tools</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  :root {
+    --ink: #1d2733;
+    --muted: #5a6573;
+    --line: #dde2e8;
+    --paper: #ffffff;
+    --wash: #f3f6f7;
+    --accent: #0f6e6e;
+    --accent-ink: #ffffff;
+    --bad: #a8261c;
+    --good: #1d6b38;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e7ecf0; --muted: #a2adb8; --line: #36404b; --paper: #1b2128;
+      --wash: #232b33; --accent: #4fb3ad; --accent-ink: #0d1a1a; --bad: #f08a80; --good: #7fd19b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  main { padding: 14px 14px 80px; max-width: 420px; }
+
+  .when {
+    border-left: 3px solid var(--accent); padding: 4px 0 4px 10px; margin-bottom: 18px;
+  }
+  .when strong { display: block; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .when span { color: var(--muted); font-size: 13px; }
+
+  h2 { font-size: 13px; font-weight: 600; margin: 20px 0 6px; color: var(--muted); }
+
+  .rows { border-top: 1px solid var(--line); }
+  .row {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    width: 100%; padding: 9px 2px; border: 0; border-bottom: 1px solid var(--line);
+    background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  }
+  .row:hover { background: var(--wash); }
+  .row b { font-weight: 600; }
+  .row small { color: var(--muted); font-size: 12px; text-align: right; }
+
+  .inline { display: flex; gap: 6px; margin-top: 8px; }
+  input, select {
+    flex: 1; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 4px;
+    background: var(--paper); color: var(--ink); font: inherit;
+  }
+  .btn {
+    padding: 7px 12px; border: 1px solid var(--accent); border-radius: 4px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600; white-space: nowrap;
+  }
+  .btn.quiet { background: none; color: var(--accent); }
+  .btn:disabled, .row:disabled { opacity: .5; cursor: default; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .grid .btn { padding: 8px 4px; font-weight: 500; }
+
+  details { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  ul.people { list-style: none; padding: 0; margin: 6px 0 0; }
+  ul.people li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  ul.people li span { overflow: hidden; text-overflow: ellipsis; }
+  ul.people button { border: 0; background: none; color: var(--bad); cursor: pointer; font: inherit; }
+  .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+
+  #status {
+    position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px;
+    background: var(--wash); border-top: 1px solid var(--line); font-size: 13px; min-height: 40px;
+  }
+  #status.bad { color: var(--bad); }
+  #status.good { color: var(--good); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="when" aria-live="polite">
+    <strong id="whenTime">Loading…</strong>
+    <span id="whenDate"></span>
+  </div>
+
+  <h2>Fill this event</h2>
+  <div class="rows">
+    <button class="row" data-action="myWork"><b>My Work</b><small>Admin category</small></button>
+    <button class="row" data-action="away"><b>Away</b><small>then Show as: Away</small></button>
+    <button class="row" data-action="remote"><b>Remote</b><small>all day, then Show as: Working elsewhere</small></button>
+    <button class="row" data-action="allDayNote"><b>All-day note</b><small>then Show as: Free</small></button>
+    <button class="row" data-action="pickup"><b>Pickup</b><small>2:45–4:30 PM that day</small></button>
+    <button class="row" data-action="vacation"><b>Vacation</b><small>all day, then Show as: Free</small></button>
+  </div>
+  <div class="inline">
+    <input id="noteText" placeholder="Note description" aria-label="Note description">
+    <button class="btn" data-action="note">Add note</button>
+  </div>
+  <p class="hint">Notes are titled with your text. Then set Show as: Free.</p>
+
+  <h2>1:1</h2>
+  <div class="inline">
+    <select id="person" aria-label="Person"></select>
+    <button class="btn" data-action="oneOnOne">Set up 1:1</button>
+  </div>
+
+  <h2>Adjust time</h2>
+  <div class="grid">
+    <button class="btn quiet" data-action="len15">15 min</button>
+    <button class="btn quiet" data-action="len30">30 min</button>
+    <button class="btn quiet" data-action="len45">45 min</button>
+    <button class="btn quiet" data-action="trim5">End 5 early</button>
+    <button class="btn quiet" data-action="delay5">Start 5 late</button>
+    <button class="btn quiet" data-action="shift15">Move +15</button>
+  </div>
+  <div class="rows" style="margin-top:10px">
+    <button class="row" data-action="oddStart"><b>Flag odd start</b><small>adds ":15 start" etc. to title</small></button>
+  </div>
+  <p class="hint">Turn off the reminder in the event form; add-ins can't change it.</p>
+
+  <details id="setup">
+    <summary>Set up</summary>
+    <label for="myName">Your first name (used in 1:1 and vacation titles)</label>
+    <div class="inline">
+      <input id="myName" placeholder="e.g. Hiten">
+      <button class="btn quiet" id="saveName">Save</button>
+    </div>
+
+    <label>People for 1:1s</label>
+    <ul class="people" id="peopleList"></ul>
+    <div class="inline">
+      <input id="newName" placeholder="Full name" aria-label="Full name">
+    </div>
+    <div class="inline">
+      <input id="newEmail" type="email" placeholder="Email" aria-label="Email">
+      <button class="btn quiet" id="addPerson">Add</button>
+    </div>
+    <p class="hint">Saved to your mailbox, so the list follows you to any Outlook.</p>
+  </details>
+</main>
+<div id="status" role="status" aria-live="polite"></div>
+
+<script>
+let rs, people = [], myName = "";
+const $ = id => document.getElementById(id);
+const item = () => Office.context.mailbox.item;
+
+// Wrap Office's callback style in promises
+const p = fn => new Promise((res, rej) =>
+  fn(r => r.status === Office.AsyncResultStatus.Succeeded ? res(r.value) : rej(r.error)));
+const getStart   = () => p(cb => item().start.getAsync(cb));
+const getEnd     = () => p(cb => item().end.getAsync(cb));
+const setStart   = d  => p(cb => item().start.setAsync(d, cb));
+const setEnd     = d  => p(cb => item().end.setAsync(d, cb));
+const getSubject = () => p(cb => item().subject.getAsync(cb));
+const setSubject = s  => p(cb => item().subject.setAsync(s, cb));
+const getAllDay  = () => p(cb => item().isAllDayEvent.getAsync(cb));
+const setAllDay  = v  => p(cb => item().isAllDayEvent.setAsync(v, cb));
+const addBody    = t  => p(cb => item().body.prependAsync(t, { coercionType: Office.CoercionType.Text }, cb));
+const setPeople  = l  => p(cb => item().requiredAttendees.setAsync(l, cb));
+const addMinutes = (d, n) => new Date(d.getTime() + n * 60000);
+
+async function addCategory(name) {
+  try { await p(cb => item().categories.addAsync([name], cb)); return ""; }
+  catch { return ` Category "${name}" wasn't added; check it exists in your category list.`; }
+}
+
+function say(msg, kind = "") { const s = $("status"); s.textContent = msg; s.className = kind; }
+
+async function refreshWhen() {
+  try {
+    const [s, e, allDay] = await Promise.all([getStart(), getEnd(), getAllDay()]);
+    const t = d => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    $("whenTime").textContent = allDay ? "All day" : `${t(s)} – ${t(e)}`;
+    $("whenDate").textContent = s.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  } catch { $("whenTime").textContent = "Open a new or existing event"; $("whenDate").textContent = ""; }
+}
+
+const firstName = full => full.trim().split(/\s+/)[0];
+
+const actions = {
+  async myWork()   { await setSubject("My Work"); return "My Work set." + await addCategory("Admin"); },
+  async away()     { await setSubject("Away"); return "Away set. Change Show as to Away."; },
+  async remote()   { await setAllDay(true); await setSubject("Remote"); return "Remote set. Change Show as to Working elsewhere."; },
+  async allDayNote() { await setAllDay(true); return "Made all day. Add a title, then set Show as: Free."; },
+  async note() {
+    const text = $("noteText").value.trim();
+    if (!text) { $("noteText").focus(); throw new Error("Type a description first."); }
+    await setSubject(text); $("noteText").value = "";
+    return "Note set. Change Show as to Free.";
+  },
+  async pickup() {
+    const s = await getStart();
+    if (await getAllDay()) await setAllDay(false);
+    const day = [s.getFullYear(), s.getMonth(), s.getDate()];
+    await setStart(new Date(...day, 14, 45));
+    await setEnd(new Date(...day, 16, 30));
+    await setSubject("PickUp");
+    return "Pickup set. Change Show as to Away.";
+  },
+  async vacation() {
+    await setAllDay(true);
+    await setSubject(myName ? `${myName} Vacation` : "Vacation");
+    await addBody("Safe to accept: will not block your calendar or create reminders\n");
+    return "Vacation set. Add invitees, then set Show as: Free.";
+  },
+  async oneOnOne() {
+    const who = people[$("person").value];
+    if (!who) throw new Error("Add people under Set up first.");
+    await setSubject(`${firstName(who.name)}/${myName || "Me"}`);
+    await setPeople([{ displayName: who.name, emailAddress: who.email }]);
+    await addBody("Check-in\n");
+    return `1:1 with ${who.name} ready to send.` + await addCategory("Team");
+  },
+  len15: () => setLength(15), len30: () => setLength(30), len45: () => setLength(45),
+  async trim5() { const e = await getEnd(); await setEnd(addMinutes(e, -5)); return "Ends 5 minutes earlier."; },
+  async delay5() {
+    const [s, e] = await Promise.all([getStart(), getEnd()]);
+    await setStart(addMinutes(s, 5)); await setEnd(e);
+    return "Starts 5 minutes later; end unchanged.";
+  },
+  async shift15() {
+    const [s, e] = await Promise.all([getStart(), getEnd()]);
+    await setStart(addMinutes(s, 15)); await setEnd(addMinutes(e, 15));
+    return "Moved 15 minutes later.";
+  },
+  async oddStart() {
+    const m = (await getStart()).getMinutes();
+    if (m === 0 || m === 30) return "Starts on the hour or half hour, so nothing to flag.";
+    const mm = String(m).padStart(2, "0"), prefix = `:${mm} start - `;
+    const subj = await getSubject();
+    if (!subj.startsWith(prefix)) await setSubject(prefix + subj);
+    await addBody(`Meeting starts at :${mm} past the hour.\n`);
+    return `Flagged as a :${mm} start.`;
+  },
+};
+
+async function setLength(n) {
+  const s = await getStart(); await setEnd(addMinutes(s, n));
+  return `Length set to ${n} minutes.`;
+}
+
+async function run(name) {
+  const buttons = document.querySelectorAll("[data-action]");
+  buttons.forEach(b => b.disabled = true);
+  try { say(await actions[name](), "good"); }
+  catch (err) { say(err.message || "That didn't work. Make sure an event is open.", "bad"); }
+  finally { buttons.forEach(b => b.disabled = false); refreshWhen(); }
+}
+
+// ---- Settings (stored in the mailbox via roamingSettings) ----
+function save() {
+  rs.set("people", people); rs.set("myName", myName);
+  return p(cb => rs.saveAsync(cb));
+}
+function renderPeople() {
+  people.sort((a, b) => a.name.localeCompare(b.name));
+  const sel = $("person"), list = $("peopleList");
+  sel.innerHTML = ""; list.innerHTML = "";
+  if (!people.length) {
+    sel.add(new Option("No people yet; add them under Set up", ""));
+  }
+  people.forEach((x, i) => {
+    sel.add(new Option(x.name, i));
+    const li = document.createElement("li");
+    const span = document.createElement("span"); span.textContent = `${x.name} (${x.email})`;
+    const del = document.createElement("button"); del.textContent = "Remove";
+    del.onclick = async () => { people.splice(i, 1); renderPeople(); await save(); say(`Removed ${x.name}.`); };
+    li.append(span, del); list.append(li);
+  });
+}
+
+Office.onReady(() => {
+  rs = Office.context.roamingSettings;
+  people = rs.get("people") || [];
+  myName = rs.get("myName") || "";
+  $("myName").value = myName;
+  if (!myName || !people.length) $("setup").open = true;
+  renderPeople();
+
+  document.querySelectorAll("[data-action]").forEach(b => b.onclick = () => run(b.dataset.action));
+  $("noteText").addEventListener("keydown", e => { if (e.key === "Enter") run("note"); });
+
+  $("saveName").onclick = async () => {
+    myName = $("myName").value.trim(); await save(); say("Name saved.", "good");
+  };
+  $("addPerson").onclick = async () => {
+    const name = $("newName").value.trim(), email = $("newEmail").value.trim();
+    if (!name || !/^\S+@\S+\.\S+$/.test(email)) { say("Enter a full name and a valid email.", "bad"); return; }
+    people.push({ name, email }); renderPeople(); await save();
+    $("newName").value = ""; $("newEmail").value = ""; say(`Added ${name}.`, "good");
+  };
+
+  // Keep the time display current when the pane is pinned and you switch events
+  if (Office.context.mailbox.addHandlerAsync) {
+    Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, refreshWhen);
+  }
+  if (item() && item().addHandlerAsync) {
+    item().addHandlerAsync(Office.EventType.AppointmentTimeChanged, refreshWhen);
+  }
+  refreshWhen();
+});
+</script>
+</body>
+</html>
